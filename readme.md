@@ -17,6 +17,10 @@ These are all the images featured in the game.
 
 If you want to submit an image, please do a pull-request or email tsarrafian@sophware.io. Please use `/images/squid/squid.png`, `/images/toad/toad.png`, `/images/duck/duck.png` as templates. If we like it, we'll feature it in the game!
 
+### /MAP
+
+This is the map data from which we draw the borders.
+
 ### /DIST
 
 We put the compiled html/css files here.
