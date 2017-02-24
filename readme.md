@@ -21,7 +21,7 @@ If you want to submit an image, please do a pull-request or email tsarrafian@sop
 
 These are the `.geo.json` files from which we draw the borders.
 
-Thanks to [geojson-maps](https://geojson-maps.ash.ms/) for the great map data.
+Thanks to [geojson-maps](https://geojson-maps.ash.ms/) for the sweet map data.
 
 ### /DIST
 
