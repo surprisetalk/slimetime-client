@@ -19,7 +19,9 @@ If you want to submit an image, please do a pull-request or email tsarrafian@sop
 
 ### /MAP
 
-This is the map data from which we draw the borders.
+These are the `.geo.json` files from which we draw the borders.
+
+Thanks to [geojson-maps](https://geojson-maps.ash.ms/) for the great map data.
 
 ### /DIST
 
@@ -35,12 +37,15 @@ We love [elm](https://elm-lang.org).
 git clone https://github.com/surprisetalk/slimetime-client.git
 cd slimetime-client
 
-# install elm
-npm install -g elm
+# install elm & http-server
+npm install -g elm http-server
 
 # compile the elm files into javascript
 elm install
 elm make src/Client.elm --output=dist/slimetime.js
+
+# run the server, then head to http://localhost:8080
+http-server
 
 ````
 
