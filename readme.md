@@ -27,10 +27,14 @@ We love [elm](https://elm-lang.org).
 
 ```bash
 
-# compile the client
+# pull the repo
 git pull https://github.com/surprisetalk/slimetime-client.git
 cd slimetime-client
+
+# install elm
 npm install -g elm
+
+# compile the elm files into javascript
 elm install
 elm make src/Client.elm --output=dist/slimetime.js
 
