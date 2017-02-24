@@ -28,7 +28,7 @@ We love [elm](https://elm-lang.org).
 ```bash
 
 # pull the repo
-git pull https://github.com/surprisetalk/slimetime-client.git
+git clone https://github.com/surprisetalk/slimetime-client.git
 cd slimetime-client
 
 # install elm
