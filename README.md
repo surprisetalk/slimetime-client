@@ -1,2 +1,0 @@
-# slimetime-client
-get slimey
