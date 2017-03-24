@@ -37,12 +37,11 @@ We love [elm](https://elm-lang.org).
 git clone https://github.com/surprisetalk/slimetime-client.git
 cd slimetime-client
 
-# install elm & http-server
-npm install -g elm http-server
+# initialize
+./bin/init.sh
 
-# compile the elm files into javascript
-elm install
-elm make src/Client.elm --output=dist/slimetime.js
+# compile
+./bin/compile.sh
 
 # run the server, then head to http://localhost:8080
 http-server
