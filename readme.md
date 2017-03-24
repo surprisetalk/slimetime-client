@@ -44,7 +44,7 @@ cd slimetime-client
 ./bin/compile.sh
 
 # run the server, then head to http://localhost:8080
-http-server
+http-server dst
 
 ````
 
