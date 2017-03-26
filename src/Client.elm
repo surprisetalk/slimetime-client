@@ -14,6 +14,8 @@ import Mouse
 import Window
 import Keyboard
 
+import Helper exposing (..)
+
 
 -- PORTS -----------------------------------------------------------------------
 
@@ -37,15 +39,42 @@ main =
 type alias Model
   = { map    : Result String Map
     , screen : Window.Size
+    , persp  : Persp
     -- user
     }
+
+type alias Point = ( Float, Float )
+
+type alias Persp
+  = { loc  : Point
+    , zoom : Float
+    }
+
+
+-- INIT ------------------------------------------------------------------------
 
 init : ( Model, Cmd Msg )
 init
   = { map    = Err "map not defined"
     , screen = { width = 0, height = 0 }
+    , persp  = { loc = ( 0.0, 0.0 ), zoom = 1.0 }
     } ! [ Task.perform ScreenResize <| Window.size ]
+
+
+-- TRANSFORMS ------------------------------------------------------------------
+
+mapPerspLoc : (Point -> Point) -> Model -> Model
+mapPerspLoc f = mapPersp (\p -> { p | loc = f p.loc })
+
+mapPerspZoom : (Float -> Float) -> Model -> Model
+mapPerspZoom f = mapPersp (\p -> { p | zoom = f p.zoom })
     
+mapPersp : (Persp -> Persp) -> Model -> Model
+mapPersp f model = setPersp (f model.persp) model
+
+setPersp : Persp -> Model -> Model
+setPersp persp_ model = { model | persp = persp_ }
+
 
 -- MESSAGES --------------------------------------------------------------------
 
@@ -61,12 +90,22 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model
-  = case msg of
-        NoOp              ->   model                   ! []
-        MouseMsg     pos  ->   model                   ! []
-        KeyMsg       code ->   model                   ! []
-        MapUpdate    map_ -> { model | map    = map_ } ! []
-        ScreenResize size -> { model | screen = size } ! []
+  = let keyPersp : Keyboard.KeyCode -> Model -> Model
+        keyPersp code
+          = case code of
+              37 -> mapPerspLoc  (Tuple.mapFirst  <|    (+)   15) -- left
+              38 -> mapPerspLoc  (Tuple.mapSecond <| fl (-)   15) -- up
+              39 -> mapPerspLoc  (Tuple.mapFirst  <| fl (-)   15) -- right
+              40 -> mapPerspLoc  (Tuple.mapSecond <|    (+)   15) -- down
+              74 -> mapPerspZoom (                  fl (-) 0.15) -- j
+              75 -> mapPerspZoom (                     (+) 0.15) -- k
+              _  -> identity
+    in  case msg of
+          NoOp              ->   model                   ! []
+          MouseMsg     pos  ->   model                   ! []
+          KeyMsg       code -> ( model |> keyPersp code ) ! []
+          MapUpdate    map_ -> { model | map    = map_ } ! []
+          ScreenResize size -> { model | screen = size } ! []
 
 
 -- SUBSCRIPTIONS ---------------------------------------------------------------
@@ -84,9 +123,9 @@ subscriptions model
 -- VIEW ------------------------------------------------------------------------
 
 view : Model -> Html Msg
-view { map, screen }
+view { map, screen, persp }
   = Result_.unwrap
-    (div [] [])
-    (Map.view screen)
+    (text "error: could not decode map")
+    (Map.view screen persp)
     map
     

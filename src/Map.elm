@@ -12,8 +12,17 @@ import Color exposing (..)
 import Collage exposing ( defaultLine )
 import Element
 
+import Window
+
 
 -- MODEL -----------------------------------------------------------------------
+
+type alias Point = ( Float, Float )
+
+type alias Persp
+  = { loc  : Point
+    , zoom : Float
+    }
 
 type alias Coord
     = { x : Float
@@ -72,32 +81,39 @@ coordinatesDecoder_
 
 -- DECODER ---------------------------------------------------------------------
 
-view : { width : Int, height : Int } -> Map -> Html msg
-view { width, height }
+-- -- TODO: use html touch/scroll interactions to take over zoom?
+view : Window.Size -> Persp -> Map -> Html msg
+view { width, height } { loc, zoom } map
   = let w : Float
         w = toFloat width
         h : Float
         h = toFloat height
-        coordToTuple : Coord -> ( Float, Float )
-        coordToTuple {x,y} = (x,y)
-        -- TODO: we want cover rather than stretch
+        m : Float
+        m = max w h
+        coordToPoint : Coord -> Point
+        coordToPoint {x,y} = (x,y)
+        -- TODO: need a modulo to wrap-around
         geoToScreen : Coord -> Coord
-        geoToScreen {x,y} = { x = x / 180 * w / 2
-                            , y = y /  90 * h / 2 }
+        geoToScreen {x,y} = { x = x / 180 * m / 2 + Tuple.first  loc |> (*) zoom
+                            , y = y /  90 * m / 2 + Tuple.second loc |> (*) zoom }
+        formMap : Collage.Form
+        formMap = map
+                |> List.map formBorder
+                |> Collage.group
+        formBorder : Border -> Collage.Form
+        formBorder = List.map geoToScreen
+                   >> List.map coordToPoint
+                   >> Collage.path
+                   >> Collage.traced borderStyle
+        formBackground : Collage.Form
+        formBackground = Collage.rect w h
+                       |> Collage.filled darkCharcoal
         borderStyle : Collage.LineStyle
         borderStyle = { defaultLine
                         | color = lightCharcoal
                         , width = 1
                       }
-        viewBorder : Border -> Collage.Form
-        viewBorder = List.map geoToScreen
-                  >> List.map coordToTuple
-                  >> Collage.path
-                  >> Collage.traced borderStyle
-        viewMap : Map -> Collage.Form
-        viewMap = List.map viewBorder >> Collage.group
-        -- TODO: we can fill in the regions by finding a centroid of the border and then generating a bunch of trianges to each border? it'll make the regions convex but whatever
-    in  Element.toHtml 
-        << Collage.collage width height
-        << (::) (Collage.rect w h |> Collage.filled darkCharcoal)
-        << viewMap
+    in  [ formBackground, formMap ]
+        |> Collage.collage width height
+        |> Element.toHtml
+
