@@ -9,4 +9,4 @@
 
 ## ELM ########################################################################
 
-elm make src/Client.elm --output=dst/client.js
+elm make src/Client.elm --warn --debug --output=dst/client.js
