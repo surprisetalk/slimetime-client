@@ -9,6 +9,7 @@ import Result.Extra as Result_
 
 import Json.Decode exposing (..)
 import Html exposing (..)
+-- import Time
 import Task
 import Mouse
 import Window
@@ -73,7 +74,20 @@ mapPersp : (Persp -> Persp) -> Model -> Model
 mapPersp f model = setPersp (f model.persp) model
 
 setPersp : Persp -> Model -> Model
-setPersp persp_ model = { model | persp = persp_ }
+setPersp persp_ model
+  = let loc__ : ( Float, Float )
+        loc__ = persp_.loc
+              |> Tuple.mapFirst  mod
+              |> Tuple.mapSecond mod
+        -- KLUDGE
+        mod : Float -> Float
+        mod x = if x < 0
+                then x + (2 * pi)
+                else if x >= (2 * pi)
+                     then x - (2 * pi)
+                     else x
+                                   
+    in  { model | persp = { persp_ | loc = loc__ } }
 
 
 -- MESSAGES --------------------------------------------------------------------
@@ -93,12 +107,12 @@ update msg model
   = let keyPersp : Keyboard.KeyCode -> Model -> Model
         keyPersp code
           = case code of
-              37 -> mapPerspLoc  (Tuple.mapFirst  <|    (+)   15) -- left
-              38 -> mapPerspLoc  (Tuple.mapSecond <| fl (-)   15) -- up
-              39 -> mapPerspLoc  (Tuple.mapFirst  <| fl (-)   15) -- right
-              40 -> mapPerspLoc  (Tuple.mapSecond <|    (+)   15) -- down
-              74 -> mapPerspZoom (                  fl (-) 0.15) -- j
-              75 -> mapPerspZoom (                     (+) 0.15) -- k
+              37 -> mapPerspLoc  (Tuple.mapFirst  <| fl (-) (pi / 8 / model.persp.zoom)) -- left
+              38 -> mapPerspLoc  (Tuple.mapSecond <|    (+) (pi / 8 / model.persp.zoom)) -- up
+              39 -> mapPerspLoc  (Tuple.mapFirst  <|    (+) (pi / 8 / model.persp.zoom)) -- right
+              40 -> mapPerspLoc  (Tuple.mapSecond <| fl (-) (pi / 8 / model.persp.zoom)) -- down
+              74 -> mapPerspZoom (                  fl (-)   0.25 ) -- j
+              75 -> mapPerspZoom (                     (+)   0.25 ) -- k
               _  -> identity
     in  case msg of
           NoOp              ->   model                   ! []
@@ -117,6 +131,8 @@ subscriptions model
         , Keyboard.downs KeyMsg
         , cartography (Map.decode >> MapUpdate)
         , Window.resizes ScreenResize
+        -- , Time.every (Time.second    ) (\_ -> KeyMsg 38)
+        -- , Time.every (Time.second / 2) (\_ -> KeyMsg 37)
         ]
 
 

@@ -14,6 +14,11 @@ import Element
 
 import Window
 
+import Helper exposing (..)
+
+import List.Extra as List_
+-- import Maybe.Extra as Maybe_
+
 
 -- MODEL -----------------------------------------------------------------------
 
@@ -40,7 +45,7 @@ type alias Map = List Border
 geoListToCoord : List Float -> Result String Coord
 geoListToCoord lst
     = case lst of
-          [ x, y ] -> Ok  <| Coord x y
+          [ x, y ] -> Ok  <| Coord (degrees x) (degrees y)
           _        -> Err <| "could not parse list " ++ toString lst ++ " into tuple"
 
 
@@ -92,17 +97,49 @@ view { width, height } { loc, zoom } map
         m = max w h
         coordToPoint : Coord -> Point
         coordToPoint {x,y} = (x,y)
-        -- TODO: need a modulo to wrap-around
+        mapProjection : Point -> Point -> Maybe Point
+        mapProjection (x_,y_) (x,y)
+          -- BUG: apparently we need to do a weird inverse thing that's not gonna happen
+          = if   0 <= (sin y_ * sin y) + (cos y_ * cos y * cos (x-x_))
+            then Just (                         (           (cos y) * (sin (x-x_)))  * m * zoom
+                      , (((cos y_) * (sin y)) - ((sin y_) * (cos y) * (cos (x-x_)))) * m * zoom
+                      )
+            else Nothing
+          -- = let rho = sqrt ((x^2)+(y^2))
+          --       c = asin (rho/r)
+          --       r = 500
+          --   in  Just ( asin (((cos c)*(sin y_)) + ((y * (sin c) * (cos y_)) / rho))
+          --            , y_ + (atan2 ((x) / ()))
+          --            )
+
+
+        geoToScreen_ : Float -> Float -> Float -> Float
+        geoToScreen_ rng geo_ loc_ = (((geo_ - loc_) %% (floor (rng * 2))) - rng) / rng * m / 2 * zoom
         geoToScreen : Coord -> Coord
-        geoToScreen {x,y} = { x = x / 180 * m / 2 + Tuple.first  loc |> (*) zoom
-                            , y = y /  90 * m / 2 + Tuple.second loc |> (*) zoom }
+        geoToScreen {x,y}
+          = { x = geoToScreen_ 180 x <| Tuple.first  loc
+            , y = geoToScreen_  90 y <| Tuple.second loc }
         formMap : Collage.Form
         formMap = map
                 |> List.map formBorder
                 |> Collage.group
+        snipAtJumps : List Point -> List (List Point)
+        snipAtJumps l
+          = List_.zip l (cycle 1 l)
+          |> fl List.foldr [[]]
+            (\((x,y),(x_,y_)) l_ ->
+               -- BUG: the axes are getting snipped
+               if   x * x_ > 0
+               &&   y * y_ > 0
+               then mapFirst ((::)  (x,y) ) l_
+               else          ((::) [(x,y)]) l_)
         formBorder : Border -> Collage.Form
-        formBorder = List.map geoToScreen
-                   >> List.map coordToPoint
+        formBorder = List.map coordToPoint
+                   >> List.map (mapProjection loc)
+                   >> mResolveList
+                   -- >> snipAtJumps
+                   -- >> List.map Collage.path
+                   -- >> List.map (Collage.traced borderStyle)
                    >> Collage.path
                    >> Collage.traced borderStyle
         formBackground : Collage.Form
