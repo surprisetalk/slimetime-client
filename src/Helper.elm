@@ -3,6 +3,8 @@ module Helper exposing (..)
 
 import Maybe.Extra as Maybe_
 
+import Time exposing ( Time, millisecond )
+
 fl : (a -> b -> c) -> b -> a -> c
 fl = flip     
 
@@ -20,6 +22,9 @@ mapFirst f xs
       []       -> []
       x :: xs_ -> f x :: xs_
 
+mapBoth : (a -> b) -> (a,a) -> (b,b)
+mapBoth f (x,y) = ( f x , f y )
+
 cycle : Int -> List x -> List x
 cycle n xs = List.drop n xs ++ List.take n xs
 
@@ -31,3 +36,6 @@ toDegrees = (*) pi >> fl (/) 180
 
 fromDegrees : Float -> Float
 fromDegrees = degrees 
+
+ms : Time
+ms = millisecond

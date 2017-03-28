@@ -19,6 +19,8 @@ import Helper exposing (..)
 import List.Extra as List_
 -- import Maybe.Extra as Maybe_
 
+import Time exposing (..)
+
 
 -- MODEL -----------------------------------------------------------------------
 
@@ -38,6 +40,9 @@ type alias Coord
 type alias Border = List Coord
 
 type alias Map = List Border
+
+-- TODO: move this to a team module
+type Team = Squid | Toad | Duck
 
 
 -- TRANSFORMS ------------------------------------------------------------------
@@ -87,9 +92,11 @@ coordinatesDecoder_
 -- DECODER ---------------------------------------------------------------------
 
 -- -- TODO: use html touch/scroll interactions to take over zoom?
-view : Window.Size -> Persp -> Map -> Html msg
-view { width, height } { loc, zoom } map
-  = let w : Float
+view : Team -> Time -> Window.Size -> Persp -> Map -> Html msg
+view team time { width, height } { loc, zoom } map
+  = let t : Float
+        t = inHours time %% 24
+        w : Float
         w = toFloat width
         h : Float
         h = toFloat height
@@ -99,20 +106,11 @@ view { width, height } { loc, zoom } map
         coordToPoint {x,y} = (x,y)
         mapProjection : Point -> Point -> Maybe Point
         mapProjection (x_,y_) (x,y)
-          -- BUG: apparently we need to do a weird inverse thing that's not gonna happen
           = if   0 <= (sin y_ * sin y) + (cos y_ * cos y * cos (x-x_))
             then Just (                         (           (cos y) * (sin (x-x_)))  * m * zoom
                       , (((cos y_) * (sin y)) - ((sin y_) * (cos y) * (cos (x-x_)))) * m * zoom
                       )
             else Nothing
-          -- = let rho = sqrt ((x^2)+(y^2))
-          --       c = asin (rho/r)
-          --       r = 500
-          --   in  Just ( asin (((cos c)*(sin y_)) + ((y * (sin c) * (cos y_)) / rho))
-          --            , y_ + (atan2 ((x) / ()))
-          --            )
-
-
         geoToScreen_ : Float -> Float -> Float -> Float
         geoToScreen_ rng geo_ loc_ = (((geo_ - loc_) %% (floor (rng * 2))) - rng) / rng * m / 2 * zoom
         geoToScreen : Coord -> Coord
@@ -142,9 +140,17 @@ view { width, height } { loc, zoom } map
                    -- >> List.map (Collage.traced borderStyle)
                    >> Collage.path
                    >> Collage.traced borderStyle
+        -- TODO: maybe change the color depending on how much time is left in the game?
+        hue : Float
+        hue = case team of
+                Squid -> degrees 200
+                Toad  -> degrees   0
+                Duck  -> degrees 140
         formBackground : Collage.Form
         formBackground = Collage.rect w h
-                       |> Collage.filled darkCharcoal
+                       |> Collage.filled (Color.hsl hue
+                                         (Tuple.second loc                    |> (*) 2 |> cos |> fl (/) 15 |> (+) 0.40)
+                                         (Tuple.first  loc |> (+) (t / 12 * pi) |> (+) pi |> cos |> fl (/) 10 |> (+) 0.20))
         borderStyle : Collage.LineStyle
         borderStyle = { defaultLine
                         | color = lightCharcoal

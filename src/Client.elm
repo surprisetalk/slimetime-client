@@ -9,13 +9,16 @@ import Result.Extra as Result_
 
 import Json.Decode exposing (..)
 import Html exposing (..)
--- import Time
+import Time exposing (..)
 import Task
 import Mouse
 import Window
 import Keyboard
 
 import Helper exposing (..)
+
+import Animation exposing (..)
+import AnimationFrame exposing (..)
 
 
 -- PORTS -----------------------------------------------------------------------
@@ -37,18 +40,21 @@ main =
 
 -- MODEL -----------------------------------------------------------------------
 
+-- TODO: we may need to move a few of these values into the animations. we can fetch values with `getTo`
 type alias Model
   = { map    : Result String Map
     , screen : Window.Size
     , persp  : Persp
+    , time   : Time
+    , team   : Team
     -- user
     }
 
 type alias Point = ( Float, Float )
 
 type alias Persp
-  = { loc  : Point
-    , zoom : Float
+  = { loc  : ( Animation, Animation )
+    , zoom : Animation
     }
 
 
@@ -58,36 +64,44 @@ init : ( Model, Cmd Msg )
 init
   = { map    = Err "map not defined"
     , screen = { width = 0, height = 0 }
-    , persp  = { loc = ( 0.0, 0.0 ), zoom = 1.0 }
-    } ! [ Task.perform ScreenResize <| Window.size ]
+    , persp  = { loc = ( anim, anim ), zoom = anim }
+    , team   = Toad
+    , time   = 0
+    } ! [ Task.perform ScreenResize Window.size
+        , Task.perform TimeUpdate      Time.now ]
+
+anim : Animation
+anim = animation 0 |> duration (150*ms)
 
 
 -- TRANSFORMS ------------------------------------------------------------------
 
-mapPerspLoc : (Point -> Point) -> Model -> Model
-mapPerspLoc f = mapPersp (\p -> { p | loc = f p.loc })
+changeTeam : Team -> Model -> Model
+changeTeam team model
+  = let team_ : Team
+        team_ = case team of
+                  Squid -> Toad
+                  Toad  -> Duck
+                  Duck  -> Squid
+    in  { model | team = team_ }
 
-mapPerspZoom : (Float -> Float) -> Model -> Model
-mapPerspZoom f = mapPersp (\p -> { p | zoom = f p.zoom })
+mapTo : Time -> (Float -> Float) -> Animation -> Animation
+mapTo t f a = getTo a |> f |> fl (retarget t) a
+
+getPerspZoom : Model -> Float
+getPerspZoom = .persp >> .zoom >> getTo
+
+mapPerspZoom : Time -> (Float -> Float) -> Model -> Model
+mapPerspZoom t f = mapPersp (\p -> { p | zoom = mapTo t f p.zoom })
     
+mapPerspLoc : Time -> (Point -> Point) -> Model -> Model
+mapPerspLoc t f = mapPersp (\p -> { p | loc = p.loc |> mapBoth getTo |> f |> \(x,y) -> (retarget t x (Tuple.first p.loc), retarget t y (Tuple.second p.loc)) })
+
 mapPersp : (Persp -> Persp) -> Model -> Model
 mapPersp f model = setPersp (f model.persp) model
 
 setPersp : Persp -> Model -> Model
-setPersp persp_ model
-  = let loc__ : ( Float, Float )
-        loc__ = persp_.loc
-              |> Tuple.mapFirst  mod
-              |> Tuple.mapSecond mod
-        -- KLUDGE
-        mod : Float -> Float
-        mod x = if x < 0
-                then x + (2 * pi)
-                else if x >= (2 * pi)
-                     then x - (2 * pi)
-                     else x
-                                   
-    in  { model | persp = { persp_ | loc = loc__ } }
+setPersp persp_ model = { model | persp = persp_ }
 
 
 -- MESSAGES --------------------------------------------------------------------
@@ -98,32 +112,39 @@ type Msg
   | MouseMsg Mouse.Position
   | KeyMsg Keyboard.KeyCode
   | ScreenResize Window.Size
+  | TimeUpdate Time
 
 
 -- UPDATE ----------------------------------------------------------------------
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model
-  = let keyPersp : Keyboard.KeyCode -> Model -> Model
+  = let keyPerspLoc : ((Float -> Float) -> Point -> Point) -> (Float -> Float -> Float) -> Model -> Model
+        keyPerspLoc fp fn = mapPerspLoc model.time <| fp <| fn <| pi / 32 / getPerspZoom model
+        -- TODO: use shift (16) for larger jumps
+        keyPersp : Keyboard.KeyCode -> Model -> Model
         keyPersp code
           = case code of
-              37 -> mapPerspLoc  (Tuple.mapFirst  <| fl (-) (pi / 8 / model.persp.zoom)) -- left
-              38 -> mapPerspLoc  (Tuple.mapSecond <|    (+) (pi / 8 / model.persp.zoom)) -- up
-              39 -> mapPerspLoc  (Tuple.mapFirst  <|    (+) (pi / 8 / model.persp.zoom)) -- right
-              40 -> mapPerspLoc  (Tuple.mapSecond <| fl (-) (pi / 8 / model.persp.zoom)) -- down
-              74 -> mapPerspZoom (                  fl (-)   0.25 ) -- j
-              75 -> mapPerspZoom (                     (+)   0.25 ) -- k
+              37 -> keyPerspLoc Tuple.mapFirst  <| fl (-)     -- left
+              38 -> keyPerspLoc Tuple.mapSecond <|    (+)     -- up
+              39 -> keyPerspLoc Tuple.mapFirst  <|    (+)     -- right
+              40 -> keyPerspLoc Tuple.mapSecond <| fl (-)     -- down
+              74 -> mapPerspZoom     model.time <| fl (-) 0.1 -- j
+              75 -> mapPerspZoom     model.time <|    (+) 0.1 -- k
+              84 -> changeTeam       model.team
               _  -> identity
     in  case msg of
           NoOp              ->   model                   ! []
           MouseMsg     pos  ->   model                   ! []
           KeyMsg       code -> ( model |> keyPersp code ) ! []
           MapUpdate    map_ -> { model | map    = map_ } ! []
+          TimeUpdate     t_ -> { model | time   =   t_ } ! []
           ScreenResize size -> { model | screen = size } ! []
 
 
 -- SUBSCRIPTIONS ---------------------------------------------------------------
 
+-- TODO: location
 subscriptions : Model -> Sub Msg
 subscriptions model
   = Sub.batch
@@ -131,6 +152,7 @@ subscriptions model
         , Keyboard.downs KeyMsg
         , cartography (Map.decode >> MapUpdate)
         , Window.resizes ScreenResize
+        , AnimationFrame.times TimeUpdate
         -- , Time.every (Time.second    ) (\_ -> KeyMsg 38)
         -- , Time.every (Time.second / 2) (\_ -> KeyMsg 37)
         ]
@@ -139,9 +161,9 @@ subscriptions model
 -- VIEW ------------------------------------------------------------------------
 
 view : Model -> Html Msg
-view { map, screen, persp }
+view { map, team, time, screen, persp }
   = Result_.unwrap
     (text "error: could not decode map")
-    (Map.view screen persp)
+    (Map.view team time screen { loc = mapBoth (animate time) persp.loc, zoom = animate time persp.zoom })
     map
     
